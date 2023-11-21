@@ -1,0 +1,67 @@
+<StructureDefinition xmlns="http://hl7.org/fhir">
+    <url value="https://example.org/fhir/StructureDefinition/DwBundle" />
+    <name value="DwBundle" />
+    <status value="draft" />
+    <date value="2023-01-27T21:51:54.9517284+00:00" />
+    <fhirVersion value="4.0.1" />
+    <kind value="resource" />
+    <abstract value="false" />
+    <type value="Bundle" />
+    <baseDefinition value="http://hl7.org/fhir/StructureDefinition/Bundle" />
+    <derivation value="constraint" />
+    <differential>
+        <element id="Bundle.id">
+            <path value="Bundle.id" />
+            <min value="1" />
+        </element>
+        <element id="Bundle.meta">
+            <path value="Bundle.meta" />
+        </element>
+        <element id="Bundle.meta.lastUpdated">
+            <path value="Bundle.meta.lastUpdated" />
+            <min value="1" />
+        </element>
+        <element id="Bundle.meta.source">
+            <path value="Bundle.meta.source" />
+            <min value="1" />
+        </element>
+        <element id="Bundle.identifier">
+            <path value="Bundle.identifier" />
+            <min value="1" />
+        </element>
+        <element id="Bundle.type">
+            <path value="Bundle.type" />
+            <comment value="Usage Note: bundle type will be set as follows;\nWhen patient summary then type = document \nWhen data extract then type = batch\n\nIt&#39;s possible to use a bundle for other purposes (e.g. a document can be accepted as a transaction). This is primarily defined so that there can be specific rules for some of the bundle types.\n\nAsync data extracts to be sent as batch bundles." />
+            <mustSupport value="true" />
+        </element>
+        <element id="Bundle.timestamp">
+            <path value="Bundle.timestamp" />
+            <comment value="For many bundles, the timestamp is equal to .meta.lastUpdated, because they are not stored (e.g. search results). When a bundle is placed in a persistent store, .meta.lastUpdated will be usually be changed by the server. When the bundle is a message, a middleware agent altering the message (even if not stored) SHOULD update .meta.lastUpdated. .timestamp is used to track the original time of the Bundle, and SHOULD be populated.  \n\nUsage:\n\n* document : the date the document was created. Note: the composition may predate the document, or be associated with multiple documents. The date of the composition - the authoring time - may be earlier than the document assembly time\n* message : the date that the content of the message was assembled. This date is not changed by middleware engines unless they add additional data that changes the meaning of the time of the message\n* history : the date that the history was assembled. This time would be used as the _since time to ask for subsequent updates\n* searchset : the time that the search set was assembled. Note that different pages MAY have different timestamps but need not. Having different timestamps does not imply that subsequent pages will represent or include changes made since the initial query\n* transaction | transaction-response | batch | batch-response | collection : no particular assigned meaning\n\nThe timestamp value should be greater than the lastUpdated and other timestamps in the resources in the bundle, and it should be equal or earlier than the .meta.lastUpdated on the Bundle itself.\n\nTimestamps must be in UTC" />
+            <mustSupport value="true" />
+        </element>
+        <element id="Bundle.entry">
+            <path value="Bundle.entry" />
+            <min value="1" />
+            <mustSupport value="true" />
+        </element>
+        <element id="Bundle.entry.id">
+            <path value="Bundle.entry.id" />
+            <comment value="Unique identifier for the bundle entry -- bundle.id + resource.id" />
+            <min value="1" />
+        </element>
+        <element id="Bundle.entry.resource">
+            <path value="Bundle.entry.resource" />
+            <comment value="Usage note:  when type = batch then provide resources, when type = document then provide composition" />
+            <min value="1" />
+            <mustSupport value="true" />
+        </element>
+        <element id="Bundle.entry.request.method">
+            <path value="Bundle.entry.request.method" />
+            <mustSupport value="false" />
+        </element>
+        <element id="Bundle.entry.request.url">
+            <path value="Bundle.entry.request.url" />
+            <mustSupport value="false" />
+        </element>
+    </differential>
+</StructureDefinition>
