@@ -1,18 +1,13 @@
 ﻿using Hl7.Fhir.Model;
 using Hl7.Fhir.Serialization;
-using Hl7.Fhir.Validation;
-using Hl7.Fhir.Specification.Source;
-using Hl7.FhirPath.Sprache;
+using System.ComponentModel.DataAnnotations;
+using System.Text.Json;
 
 class Validate
 {
     // default path to jsons folder
     static string jsonsFolderPath = Path.GetDirectoryName(Environment.CurrentDirectory) + "..\\..\\..\\jsons";
     static readonly string lineSeparator = "----------------------------------------------------------------------------------";
-    
-
-    static bool printInfo = false;
-    static bool printWarn = false;
 
     static void Main(string[] args)
     {
@@ -21,41 +16,32 @@ class Validate
 
         string[] filePaths = Directory.GetFiles(jsonsFolderPath);
 
-        var resolver = ZipSource.CreateValidationSource();
-        var directoryResolver = new DirectorySource("profiles");
-
-        var settings = ValidationSettings.CreateDefault();
-        // add support for custom profiles
-        settings.ResourceResolver = new CachedResolver(
-            new MultiResolver(resolver, directoryResolver)
-        );
-
-        var validator = new Validator(settings);
-
         foreach (string filePath in filePaths)
         {
             Console.WriteLine($"{lineSeparator}\nProcessing file: {filePath}");
-            ProcessFile(filePath, validator);
+            ProcessFile(filePath);
             Console.WriteLine($"Processed file: {filePath}\n{lineSeparator}");
         }
     }
-    private static void ProcessFile(string filePath, Validator validator)
+    private static void ProcessFile(string filePath)
     {
+        var options = new JsonSerializerOptions().ForFhir(ModelInfo.ModelInspector);
         string jsonContent = File.ReadAllText(filePath);
-
         try
         {
-            var parser = new FhirJsonParser();
-            var bundle = parser.Parse<Bundle>(jsonContent);
+            // first step of validation is happenening while deserialization
+            Bundle bundle = JsonSerializer.Deserialize<Bundle>(jsonContent, options)!;
 
-            var outcome = validator.Validate(bundle);
-            WriteOutcome(outcome, bundle);
+            if (bundle != null) {
+                IEnumerable<ValidationResult> results = bundle.Validate(new ValidationContext(true))!;
+                WriteOutcome(results, bundle);
+            }
         }
         catch (Exception ex)
         {
             string str = ex switch
             {
-                FormatException => $"Json format exception: {ex.Message}",
+                DeserializationFailedException => $"Deserialization exception:\n{ex.Message}",
                 _ => "Unexpected exception type: " + ex.GetType().Name + " - " + ex.Message
             };
             Console.WriteLine(str);
@@ -63,19 +49,13 @@ class Validate
 
     }
 
-    private static void WriteOutcome(OperationOutcome outcome, Resource resource)
+    private static void WriteOutcome(IEnumerable<ValidationResult> results, Resource resource)
     {
-        Console.WriteLine($"Validation of resource with id '{resource.Id}' {(outcome.Success ? "is successful" : "has failed:")}");
-        if (!outcome.Success)
+        if (results.Any())
         {
-            outcome.Issue.Where(i =>
-            {
-                if (i.Severity == OperationOutcome.IssueSeverity.Information && !printInfo)
-                    return false;
-                if (i.Severity == OperationOutcome.IssueSeverity.Warning && !printWarn)
-                    return false;
-                return true;
-            }).ToList().ForEach(i => Console.WriteLine($"  {i}"));
+            results.ToList().ForEach(r => Console.WriteLine($"  {r} {r.MemberNames} {r.GetType} {r.ErrorMessage}"));
+        } else {
+            Console.WriteLine($" - Resource with id '{resource.Id}' validated successfully");
         }
     }
 
@@ -97,16 +77,6 @@ class Validate
                         Console.WriteLine("Error: Directory path not provided after -d or --directory flag.");
                         return;
                     }
-                    break;
-
-                case "-i":
-                case "--info":
-                    printInfo = true;
-                    break;
-
-                case "-w":
-                case "--warning":
-                    printWarn = true;
                     break;
 
                 default:
