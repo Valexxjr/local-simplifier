@@ -41,7 +41,7 @@ class Validate
         {
             string str = ex switch
             {
-                DeserializationFailedException => $"Deserialization exception:\n{ex.Message}",
+                DeserializationFailedException => $"Deserialization exception:\n{formatDeserilizationExceptionMessage(ex.Message)}",
                 _ => "Unexpected exception type: " + ex.GetType().Name + " - " + ex.Message
             };
             Console.WriteLine(str);
@@ -49,7 +49,7 @@ class Validate
 
     }
 
-    private static void WriteOutcome(IEnumerable<ValidationResult> results, Resource resource)
+    private static void WriteOutcome(IEnumerable<ValidationResult> results, Hl7.Fhir.Model.Resource resource)
     {
         if (results.Any())
         {
@@ -57,6 +57,13 @@ class Validate
         } else {
             Console.WriteLine($" - Resource with id '{resource.Id}' validated successfully");
         }
+    }
+
+    private static string formatDeserilizationExceptionMessage(string message) {
+        string[] errorParts = message.Split([") ("], StringSplitOptions.None);
+
+        // Format each part with parentheses and new line
+        return string.Join(Environment.NewLine, errorParts.Select(part => $"({part})"));
     }
 
     private static void ParseArguments(string[] args)
