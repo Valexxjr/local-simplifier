@@ -1,4 +1,7 @@
-﻿using Hl7.Fhir.Model;
+﻿extern alias stu3;
+extern alias r4;
+
+using Hl7.Fhir.Model;
 using Hl7.Fhir.Serialization;
 using System.ComponentModel.DataAnnotations;
 using System.Text.Json;
@@ -8,6 +11,9 @@ class Validate
     // default path to jsons folder
     static string jsonsFolderPath = Path.GetDirectoryName(Environment.CurrentDirectory) + "..\\..\\..\\jsons";
     static readonly string lineSeparator = "----------------------------------------------------------------------------------";
+
+    static bool useSTU3 = false;
+    static bool useR4 = false;
 
     static void Main(string[] args)
     {
@@ -19,13 +25,20 @@ class Validate
         foreach (string filePath in filePaths)
         {
             Console.WriteLine($"{lineSeparator}\nProcessing file: {filePath}");
-            ProcessFile(filePath);
+            if (useSTU3) {
+                Console.WriteLine("fhir3:");
+                ProcessFile(filePath, stu3::Hl7.Fhir.Model.ModelInfo.ModelInspector);
+            }
+            if (useR4) {
+                Console.WriteLine("fhir4:");
+                ProcessFile(filePath, r4::Hl7.Fhir.Model.ModelInfo.ModelInspector);
+            }
             Console.WriteLine($"Processed file: {filePath}\n{lineSeparator}");
         }
     }
-    private static void ProcessFile(string filePath)
+    private static void ProcessFile(string filePath, Hl7.Fhir.Introspection.ModelInspector modelInspector)
     {
-        var options = new JsonSerializerOptions().ForFhir(ModelInfo.ModelInspector);
+        var options = new JsonSerializerOptions().ForFhir(modelInspector);
         string jsonContent = File.ReadAllText(filePath);
         try
         {
@@ -41,7 +54,7 @@ class Validate
         {
             string str = ex switch
             {
-                DeserializationFailedException => $"Deserialization exception:\n{formatDeserilizationExceptionMessage(ex.Message)}",
+                DeserializationFailedException => $"Deserialization exception:\n{FormatDeserilizationExceptionMessage(ex.Message)}",
                 _ => "Unexpected exception type: " + ex.GetType().Name + " - " + ex.Message
             };
             Console.WriteLine(str);
@@ -59,7 +72,7 @@ class Validate
         }
     }
 
-    private static string formatDeserilizationExceptionMessage(string message) {
+    private static string FormatDeserilizationExceptionMessage(string message) {
         string[] errorParts = message.Split([") ("], StringSplitOptions.None);
 
         // Format each part with parentheses and new line
@@ -85,7 +98,14 @@ class Validate
                         return;
                     }
                     break;
-
+                case "-stu3":
+                case "--fhir3":
+                    useSTU3 = true;
+                    break;
+                case "-r4":
+                case "--fhir4":
+                    useR4 = true;
+                    break;
                 default:
                     Console.WriteLine($"Error: Unknown argument {args[i]}");
                     return;

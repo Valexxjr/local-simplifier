@@ -9,7 +9,8 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Hl7.Fhir.STU3" Version="5.4.0" />
+    <PackageReference Include="Hl7.Fhir.STU3" Version="5.4.0" Aliases="stu3"/>
+    <PackageReference Include="Hl7.Fhir.R4" Version="5.4.0" Aliases="r4"/>
   </ItemGroup>
 
 </Project>
