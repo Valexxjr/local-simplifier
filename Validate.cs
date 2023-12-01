@@ -8,75 +8,131 @@ using System.Text.Json;
 
 class Validate
 {
-    // default path to jsons folder
     static string jsonsFolderPath = Path.GetDirectoryName(Environment.CurrentDirectory) + "..\\..\\..\\jsons";
     static readonly string lineSeparator = "----------------------------------------------------------------------------------";
 
     static bool useSTU3 = false;
     static bool useR4 = false;
+    static bool printConsole = false;
 
     static void Main(string[] args)
     {
-
         ParseArguments(args);
 
         string[] filePaths = Directory.GetFiles(jsonsFolderPath);
 
+        var fhir3Report = new Report();
+        var fhir4Report = new Report();
+
         foreach (string filePath in filePaths)
         {
-            Console.WriteLine($"{lineSeparator}\nProcessing file: {filePath}");
-            if (useSTU3) {
-                Console.WriteLine("fhir3:");
-                ProcessFile(filePath, stu3::Hl7.Fhir.Model.ModelInfo.ModelInspector);
+            Print($"{lineSeparator}\nProcessing file: {filePath}");
+            if (useSTU3)
+            {
+                Print("fhir3:");
+                fhir3Report.filesProceed++;
+                var errors = ProcessFile(filePath, stu3::Hl7.Fhir.Model.ModelInfo.ModelInspector);
+                if (errors.Count > 0)
+                {
+                    fhir3Report.filesWithErrors++;
+                    fhir3Report.validationResults.Add(filePath, errors);
+                }
             }
-            if (useR4) {
-                Console.WriteLine("fhir4:");
-                ProcessFile(filePath, r4::Hl7.Fhir.Model.ModelInfo.ModelInspector);
+            if (useR4)
+            {
+                Print("fhir4:");
+                fhir4Report.filesProceed++;
+                var errors = ProcessFile(filePath, r4::Hl7.Fhir.Model.ModelInfo.ModelInspector);
+                if (errors.Count > 0)
+                {
+                    fhir4Report.filesWithErrors++;
+                    fhir4Report.validationResults.Add(filePath, errors);
+                }
             }
-            Console.WriteLine($"Processed file: {filePath}\n{lineSeparator}");
+            Print($"Processed file: {filePath}\n{lineSeparator}");
         }
+
+        var jsonSerializerOptions = new JsonSerializerOptions { WriteIndented = true, IncludeFields = true, };
+
+        if (useSTU3)
+        {
+            string reportFileName = "report_fhir3.json";
+            fhir3Report.CountTotalErrors();
+            string reportJson = JsonSerializer.Serialize(fhir3Report, jsonSerializerOptions);
+            File.WriteAllText(reportFileName, reportJson);
+            Console.WriteLine($"Validation report has been generated: {reportFileName}");
+        }
+
+        if (useR4)
+        {
+            string reportFileName = "report_fhir4.json";
+            fhir4Report.CountTotalErrors();
+            string reportJson = JsonSerializer.Serialize(fhir4Report, jsonSerializerOptions);
+            File.WriteAllText(reportFileName, reportJson);
+            Console.WriteLine($"Validation report has been generated: {reportFileName}");
+        }
+
     }
-    private static void ProcessFile(string filePath, Hl7.Fhir.Introspection.ModelInspector modelInspector)
+
+    private static List<string> ProcessFile(string filePath, Hl7.Fhir.Introspection.ModelInspector modelInspector)
     {
         var options = new JsonSerializerOptions().ForFhir(modelInspector);
         string jsonContent = File.ReadAllText(filePath);
+
+        var validationResults = new List<string>();
         try
         {
             // first step of validation is happenening while deserialization
             Bundle bundle = JsonSerializer.Deserialize<Bundle>(jsonContent, options)!;
 
-            if (bundle != null) {
+            if (bundle != null)
+            {
                 IEnumerable<ValidationResult> results = bundle.Validate(new ValidationContext(true))!;
-                WriteOutcome(results, bundle);
+                validationResults.AddRange(results.Select(result => result.ErrorMessage).ToList()!);
+                PrintResults(results, bundle);
             }
+        }
+        catch (DeserializationFailedException dex)
+        {
+            var deserializationErrors = dex.Message.Split([") ("], StringSplitOptions.TrimEntries);
+            var length = deserializationErrors.Length;
+            // update message format for boundary elements 
+            if (length > 0)
+            {
+                deserializationErrors[0] = deserializationErrors[0].Substring(deserializationErrors[0].IndexOf('(') + 1);
+                deserializationErrors[length - 1] = deserializationErrors[length - 1].Substring(0, deserializationErrors[length - 1].IndexOf(')'));
+            }
+            validationResults.AddRange(deserializationErrors);
+            Print(string.Join(Environment.NewLine, deserializationErrors));
         }
         catch (Exception ex)
         {
-            string str = ex switch
-            {
-                DeserializationFailedException => $"Deserialization exception:\n{FormatDeserilizationExceptionMessage(ex.Message)}",
-                _ => "Unexpected exception type: " + ex.GetType().Name + " - " + ex.Message
-            };
-            Console.WriteLine(str);
+            var errorMessage = "Unexpected exception type: " + ex.GetType().Name + " - " + ex.Message;
+            validationResults.Add(errorMessage);
+            Print(errorMessage);
         }
-
+        return validationResults;
     }
 
-    private static void WriteOutcome(IEnumerable<ValidationResult> results, Hl7.Fhir.Model.Resource resource)
+    private static void PrintResults(IEnumerable<ValidationResult> results, Hl7.Fhir.Model.Resource resource)
     {
-        if (results.Any())
+        if (printConsole)
         {
-            results.ToList().ForEach(r => Console.WriteLine($"  {r} {r.MemberNames} {r.GetType} {r.ErrorMessage}"));
-        } else {
-            Console.WriteLine($" - Resource with id '{resource.Id}' validated successfully");
+            if (results.Any())
+            {
+                results.ToList().ForEach(r => Print($"  {r} {r.MemberNames} {r.GetType} {r.ErrorMessage}"));
+            }
+            else
+            {
+                Print($" - Resource with id '{resource.Id}' validated successfully");
+            }
         }
     }
 
-    private static string FormatDeserilizationExceptionMessage(string message) {
-        string[] errorParts = message.Split([") ("], StringSplitOptions.None);
-
-        // Format each part with parentheses and new line
-        return string.Join(Environment.NewLine, errorParts.Select(part => $"({part})"));
+    private static void Print(string message)
+    {
+        if (printConsole)
+            Console.WriteLine(message);
     }
 
     private static void ParseArguments(string[] args)
@@ -105,6 +161,10 @@ class Validate
                 case "-r4":
                 case "--fhir4":
                     useR4 = true;
+                    break;
+                case "-p":
+                case "--print":
+                    printConsole = true;
                     break;
                 default:
                     Console.WriteLine($"Error: Unknown argument {args[i]}");
