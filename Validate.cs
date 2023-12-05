@@ -8,7 +8,7 @@ using System.Text.Json;
 
 class Validate
 {
-    static string jsonsFolderPath = Path.GetDirectoryName(Environment.CurrentDirectory) + "..\\..\\..\\jsons";
+    static string jsonsFolderPath = Environment.CurrentDirectory + "/jsons";
     static readonly string lineSeparator = "----------------------------------------------------------------------------------";
 
     static bool useSTU3 = false;
@@ -19,37 +19,36 @@ class Validate
     {
         ParseArguments(args);
 
-        string[] filePaths = Directory.GetFiles(jsonsFolderPath);
-
         var fhir3Report = new Report();
         var fhir4Report = new Report();
-
-        foreach (string filePath in filePaths)
+        var filesSource = new FileIterator(jsonsFolderPath);
+        
+        foreach (FileContent data in filesSource)
         {
-            Print($"{lineSeparator}\nProcessing file: {filePath}");
+            Print($"{lineSeparator}\nProcessing file: {data.FileName}");
             if (useSTU3)
             {
                 Print("fhir3:");
                 fhir3Report.filesProceed++;
-                var errors = ProcessFile(filePath, stu3::Hl7.Fhir.Model.ModelInfo.ModelInspector);
+                var errors = ProcessFile(data, stu3::Hl7.Fhir.Model.ModelInfo.ModelInspector);
                 if (errors.Count > 0)
                 {
                     fhir3Report.filesWithErrors++;
-                    fhir3Report.validationResults.Add(filePath, errors);
+                    fhir3Report.validationResults.Add(data.FileName, errors);
                 }
             }
             if (useR4)
             {
                 Print("fhir4:");
                 fhir4Report.filesProceed++;
-                var errors = ProcessFile(filePath, r4::Hl7.Fhir.Model.ModelInfo.ModelInspector);
+                var errors = ProcessFile(data, r4::Hl7.Fhir.Model.ModelInfo.ModelInspector);
                 if (errors.Count > 0)
                 {
                     fhir4Report.filesWithErrors++;
-                    fhir4Report.validationResults.Add(filePath, errors);
+                    fhir4Report.validationResults.Add(data.FileName, errors);
                 }
             }
-            Print($"Processed file: {filePath}\n{lineSeparator}");
+            Print($"Processed file: {data.FileName}\n{lineSeparator}");
         }
 
         var jsonSerializerOptions = new JsonSerializerOptions { WriteIndented = true, IncludeFields = true, };
@@ -74,10 +73,10 @@ class Validate
 
     }
 
-    private static List<string> ProcessFile(string filePath, Hl7.Fhir.Introspection.ModelInspector modelInspector)
+    private static List<string> ProcessFile(FileContent file, Hl7.Fhir.Introspection.ModelInspector modelInspector)
     {
         var options = new JsonSerializerOptions().ForFhir(modelInspector);
-        string jsonContent = File.ReadAllText(filePath);
+        string jsonContent = file.Content;
 
         var validationResults = new List<string>();
         try
